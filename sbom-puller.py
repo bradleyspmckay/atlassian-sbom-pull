@@ -51,8 +51,7 @@ def pull_and_run_image(images_to_assess):
         error, exec_result = container.exec_run(command)
         if error != 0:
             print(f'Shell command ran within {image} exited with code {error}')
-        else:
-            print(f'The result of the command: {exec_result.decode("utf-8")}')
+        print(f'The result of the command: {exec_result.decode("utf-8")}')
 
         # Kill and remove the container then remove the image
         container.kill()
