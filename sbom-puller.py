@@ -39,6 +39,7 @@ def pull_and_run_image(images_to_assess):
         print(exec_result.output.decode('utf-8'))
         container.stop()
         container.remove()
+        client.containers.prune()
         pulled_image.remove()
 
 if __name__ == "__main__":
