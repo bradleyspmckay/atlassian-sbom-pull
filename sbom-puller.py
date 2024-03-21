@@ -35,13 +35,24 @@ def pull_and_run_image(images_to_assess):
 
     for image in images_to_assess:
 
-        # Pull the image, run it, and then extract the SBOM from it
+        # Pull the image and run it
         print(f'Pulling, running, and extracting SBOM from image: {image}')
         pulled_image = client.images.pull(image)
         container = client.containers.run(image, detach=True)
-        error, exec_result = container.exec_run('sh -c "SBOM_LOCATION=$(find / -iname *sbom* 2>/dev/null); echo $SBOM_LOCATION"')
-        print(f'Command ran in container exited with error code: {error}')
-        print(str(exec_result))
+
+        # The sh commands to run inside the container to extract SBOM
+        command =  'sh -c "'
+        command += 'SBOM_LOCATION=$(find / -iname *sbom* 2>/dev/null) && '
+        command += 'SBOM_FILES=$(echo $SBOM_LOCATION | grep json) && '
+        command += 'echo $SBOM_FILES'
+        command += '"'
+
+        # Run the command and catch the resulting bytes and error
+        error, exec_result = container.exec_run(command)
+        if error != 0:
+            print(f'Shell command ran within {image} exited with code {error}')
+        else:
+            print(f'The result of the command: {exec_result.decode("utf-8")}')
 
         # Kill and remove the container then remove the image
         container.kill()
