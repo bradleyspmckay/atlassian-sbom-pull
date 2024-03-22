@@ -8,8 +8,7 @@ parser = argparse.ArgumentParser(prog='Atlassian-SBOM-Puller',
 
 parser.add_argument('-i', '--image', dest='image', required=False, help='Full image path: registry.tld/repository/path/image:tag')
 parser.add_argument('-il', '--image-list', dest='image_list', required=False, help='List of full paths to all images to be assessed')
-parser.add_argument('-o', '--ouput', dest='output_directory', required=False, help='Name of output directory if not current directory')
-#parser.add_argument()
+parser.add_argument('-od', '--ouput-directory', dest='output_directory', required=False, help='Name of output directory if not current directory')
 
 args = parser.parse_args()
 
@@ -19,24 +18,31 @@ if not args.image and not args.image_list:
     exit()
 
 images_to_assess = []
+
 if args.image:
     images_to_assess.append(args.image)
+
 if args.image_list:
     with open(args.image_list, 'r') as file:
         for line in file:
             images_to_assess.append(line)
+
 if images_to_assess == []:
     print('Failed to prime image or list of images, please check your input to -i or -il')
     exit()
 
-def pull_and_run_image(images_to_assess):
+def pull_and_run_image(images_to_assess, output_directory):
 
     client = docker.from_env()
 
     for image in images_to_assess:
 
+        # Create output directory for this image
+        directory_to_store_sboms = f'{output_directory}/{image}'
+        os.makedirs(directory_to_store_sboms)
+
         # Pull the image and run it
-        print(f'Pulling, running, and extracting SBOM from image: {image}')
+        print(f'Working on {image}')
         pulled_image = client.images.pull(image)
         container = client.containers.run(image, detach=True)
 
@@ -46,10 +52,21 @@ def pull_and_run_image(images_to_assess):
         # Run the command and catch the resulting bytes and error
         error, exec_result = container.exec_run(command)
         if error != 0:
-            print(f'Shell command ran within {image} exited with code {error}')
-        print(f'The result of the command: {exec_result.decode("utf-8")}')
+            print(f'Shell command ran within {image} exited with code {error}. Moving on ...')
+        else:
+            # Create output directory for this image if it does not already exist
+            directory_to_store_sboms = f'{output_directory}/{image}'
+            if not os.path.isdir(directory_to_store_sboms):
+                os.makedirs(directory_to_store_sboms)
 
-        # Kill and remove the container then remove the image
+            sboms_to_extract = exec_result.decode("utf-8").split()
+
+            for sbom in sboms_to_extract:
+                tar_stream = container.get_archive(sbom)
+                with open(f'{directory_to_store_sboms}/{sbom}', 'wb') as output_sbom_file:
+                    output_sbom_file.write(tar_stream)
+
+        # Kill/remove the container and remove the image
         container.kill()
         container.remove()
         client.containers.prune()
@@ -57,4 +74,7 @@ def pull_and_run_image(images_to_assess):
 
 if __name__ == "__main__":
     
-    pull_and_run_image(images_to_assess)
+    if args.output_directory != None:
+        pull_and_run_image(images_to_assess, args.output_directory)
+    else:
+        pull_and_run_image(images_to_assess, os.getcwd())
