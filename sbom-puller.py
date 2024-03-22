@@ -41,11 +41,7 @@ def pull_and_run_image(images_to_assess):
         container = client.containers.run(image, detach=True)
 
         # The sh commands to run inside the container to extract SBOM
-        command =  'sh -c "'
-        command += 'SBOM_LOCATION=$(find / -iname *sbom* 2>/dev/null) && '
-        command += 'SBOM_FILES=$(echo $SBOM_LOCATION | grep json) && '
-        command += 'echo $SBOM_FILES'
-        command += '"'
+        command =  'sh -c "SBOM_LOCATION=$(find / -iname *sbom*.json 2>/dev/null)"'
 
         # Run the command and catch the resulting bytes and error
         error, exec_result = container.exec_run(command)
